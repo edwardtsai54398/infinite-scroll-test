@@ -98,6 +98,9 @@ onMounted(() => {
 
 <template>
   <div>
+    <h2>GitHub Repositories of {{ repoUser }}</h2>
+  </div>
+  <div>
     <ElButton
       type="primary"
       :icon="Refresh"
