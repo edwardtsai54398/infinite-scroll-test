@@ -2,41 +2,62 @@
 import { nextTick, onMounted, ref } from 'vue'
 import { ElTable, ElTableColumn, ElButton } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
+import axios from 'axios'
 
-const fakeData = Array.from({ length: 50 }, (_, i) => {
-  const id = i + 1
-  return {
-    id,
-    title: `User ${id}`,
-    description: `A description for user ${id}`,
-    link: `https://example.com/user${id}`
-  }
-})
 
-const reqNum = 10
+const repoUser = 'yyx990803'
+const MY_TOKEN = 'YOUR_GITHUB_TOKEN_HERE' // Replace with your GitHub token
 
 const tableRef = ref()
+const lastItemEl = ref(null)
 const data = ref([])
 let isLoadDone = false
 const isLoading = ref(false)
 const getRepo = async (offset, reqNum = 10) => {
-  console.log('getRepo called with offset:', offset);
-
+  const page = (offset / reqNum) + 1
   isLoading.value = true
-  await new Promise((resolve) => setTimeout(resolve, 1000))
-  const newData = fakeData.slice(offset, offset + reqNum)
-  unobserve(document.getElementById(`target-${data.value[data.value.length - 1]?.id}`))
+  const api = `https://api.github.com/users/${repoUser}/repos?per_page=10&page=${page}`
+  try {
+    const response = await axios({
+      method: 'get',
+      url: api,
+      headers: {
+        'X-GitHub-Api-Version': '2022-11-28',
+        'Accept': 'application/vnd.github+json',
+        'Authorization': `Bearer ${MY_TOKEN}`
+      }
+    })
 
-  data.value = data.value.concat(newData)
-  isLoading.value = false
-  if (newData.length < reqNum) {
-    isLoadDone = true
+    if (response.status !== 200) {
+      console.error(response.data.message);
+      return
+    }
+    if (response.data.length === 0) {
+      isLoadDone = true
+      return
+    }
+
+    // const newData = fakeData.slice(offset, offset + reqNum)
+    const newData = response.data
+    unobserve(lastItemEl.value)
+
+    data.value = data.value.concat(newData)
+    isLoading.value = false
+    if (newData.length < reqNum) {
+      isLoadDone = true
+    }
+    nextTick(() => {
+      lastItemEl.value = document.getElementById(`target-${data.value[data.value.length - 1]?.id
+        }`)
+      obverve(lastItemEl.value)
+    })
+
+  } catch (error) {
+    console.error('Error fetching data:', error)
+  } finally {
+    isLoading.value = false
   }
-  nextTick(() => {
-    const lastItem = document.getElementById(`target-${data.value[data.value.length - 1]?.id
-      }`)
-    obverve(lastItem)
-  })
+
 }
 
 const reload = () => {
@@ -64,7 +85,6 @@ onMounted(() => {
   observer = new IntersectionObserver((entries) => {
     entries.forEach((entry) => {
       if (entry.isIntersecting && !isLoading.value && !isLoadDone) {
-        console.log('entry:', entry);
         getRepo(data.value.length)
       }
     })
@@ -73,10 +93,6 @@ onMounted(() => {
     threshold: 1
   })
 })
-
-
-
-
 
 </script>
 
@@ -91,7 +107,6 @@ onMounted(() => {
     />
     <ElTable
       ref="tableRef"
-      v-loading="isLoading && data.length === 0"
       :data="data"
       height="500"
     >
@@ -101,7 +116,7 @@ onMounted(() => {
         width="150"
       >
         <template #default="{ row }">
-          <span :id="`target-${row.id}`">{{ row.title }}</span>
+          <span :id="`target-${row.id}`">{{ row.name }}</span>
         </template>
       </ElTableColumn>
       <ElTableColumn
@@ -116,9 +131,9 @@ onMounted(() => {
       >
         <template #default="{ row }">
           <a
-            :href="row.link"
+            :href="row.svn_url"
             target="_blank"
-          >{{ row.link }}</a>
+          >{{ row.svn_url }}</a>
         </template>
       </ElTableColumn>
       <template
@@ -128,6 +143,9 @@ onMounted(() => {
         <div style="padding: 10px 0px;">
           {{ isLoading ? 'Loading...' : 'No more data' }}
         </div>
+      </template>
+      <template #empty>
+        {{ isLoading ? 'Loading data...' : 'No data' }}
       </template>
     </ElTable>
   </div>
